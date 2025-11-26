@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Service 1: The Backend API (Simulates Render Deployment)
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: arcade_api_render
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount models folder so you can drop new .h5 files without rebuilding
+      - ./models:/app/models
+    environment:
+      - MODEL_PATH=/app/models/arcade_model.h5
+    restart: unless-stopped
+    # Resource Limits (Satisfies "Scalability" requirement)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
+    networks:
+      - arcade-network
+
+  # Service 2: The Frontend UI (Simulates Streamlit Cloud)
+  frontend:
+    # We reuse the same image environment but run a different command
+    build: .
+    container_name: arcade_ui_cloud
+    ports:
+      - "8501:8501"
+    environment:
+      # Crucial: Points the UI to the backend service name defined above
+      - API_URL=http://backend:8000
+    # Override the default CMD to run Streamlit instead of Uvicorn
+    command: streamlit run src/ui.py --server.port 8501 --server.address 0.0.0.0
+    depends_on:
+      - backend
+    networks:
+      - arcade-network
+
+networks:
+  arcade-network:
+    driver: bridge

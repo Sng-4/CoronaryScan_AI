@@ -1,0 +1,12 @@
+venv/
+.venv/
+
+.git/
+
+pycache/
+*.pyc
+.ipynb_checkpoints/
+
+.env
+
+data/
