@@ -4,15 +4,35 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import os
 
-# Configuration
-API_URL = "http://localhost:8000"
-
+# --- CONFIGURATION & SECRETS ---
 st.set_page_config(
     page_title="ARCADE AI Dashboard",
     page_icon="🫀",
     layout="wide"
 )
+
+# Robust logic to find the API URL
+# 1. Check Streamlit Cloud Secrets (Production)
+# 2. Check Environment Variables (Docker)
+# 3. Default to Localhost (Local Testing)
+try:
+    if "API_URL" in st.secrets:
+        API_URL = st.secrets["API_URL"]
+    else:
+        API_URL = os.getenv("API_URL", "http://localhost:8000")
+except FileNotFoundError:
+    # Happens locally if no .streamlit/secrets.toml exists
+    API_URL = os.getenv("API_URL", "http://localhost:8000")
+
+# Strip trailing slash to prevent double-slash errors (e.g. .com//predict)
+API_URL = API_URL.rstrip("/")
+
+# --- SIDEBAR & DIAGNOSTICS ---
+st.sidebar.title("Navigation")
+st.sidebar.info(f"🔌 Connected to: `{API_URL}`") # Debug info so you can SEE where it's pointing
+page = st.sidebar.radio("Go to", ["Dashboard & Predictions", "System Health", "Retraining Pipeline"])
 
 # --- HELPER FUNCTIONS ---
 def check_api_health():
@@ -23,13 +43,12 @@ def check_api_health():
         latency = (time.time() - start_time) * 1000 # ms
         if response.status_code == 200:
             return True, response.json(), latency
-    except:
-        pass
+    except requests.exceptions.ConnectionError:
+        return False, None, 0
+    except Exception as e:
+        st.sidebar.error(f"Health Check Error: {e}")
+        return False, None, 0
     return False, None, 0
-
-# --- SIDEBAR & NAVIGATION ---
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Dashboard & Predictions", "System Health", "Retraining Pipeline"])
 
 # --- PAGE 1: DASHBOARD & PREDICTIONS ---
 if page == "Dashboard & Predictions":
@@ -45,7 +64,8 @@ if page == "Dashboard & Predictions":
         if uploaded_file is not None:
             # Display Image
             image = Image.open(uploaded_file).convert('L')
-            st.image(image, caption="Input Angiogram", use_column_width=True)
+            # FIX: Replaced deprecated 'use_column_width' with 'use_container_width'
+            st.image(image, caption="Input Angiogram", use_container_width=True)
             
             # Prediction Button
             if st.button("Analyze Image", type="primary"):
@@ -60,14 +80,15 @@ if page == "Dashboard & Predictions":
                         if response.status_code == 200:
                             result = response.json()
                             
-                            # Store result in session state to persist across reruns if needed
+                            # Store result in session state
                             st.session_state['last_result'] = result
                             st.session_state['last_image'] = image
                         else:
                             st.error(f"Prediction Failed: {response.text}")
                             
                     except requests.exceptions.ConnectionError:
-                        st.error("❌ Could not connect to API. Is 'src/api.py' running?")
+                        st.error(f"❌ Connection Error. Tried connecting to: {API_URL}")
+                        st.warning("Check your API_URL secret in Streamlit Cloud settings.")
 
     with col2:
         st.subheader("2. Diagnostics & Visualization")
@@ -80,8 +101,12 @@ if page == "Dashboard & Predictions":
             st.markdown(f"### Diagnosis: :{diag_color}[{res['diagnosis']}]")
             
             m1, m2 = st.columns(2)
-            m1.metric("Confidence Score", res['confidence'])
+            m1.metric("Confidence Score", f"{res['confidence']:.2%}")
             m2.metric("Raw Output", f"{res['raw_score']:.4f}")
+            
+            # Show TTA details if available
+            if 'tta_scores' in res:
+                st.caption(f"TTA Analysis: Original ({res['tta_scores']['original']:.2f}) | Flipped ({res['tta_scores']['flipped']:.2f})")
             
             st.divider()
             
@@ -133,36 +158,25 @@ elif page == "System Health":
         kpi1.metric("API Status", "OFFLINE", delta="-Down")
         kpi2.metric("Model Loaded", "N/A")
         kpi3.metric("Latency", "∞")
-        st.error("Cannot connect to API. Please run `uvicorn src.api:app`.")
-
-    st.subheader("Load Simulation")
-    st.markdown("Use `locust -f locustfile.py` to simulate flood requests and view latency graphs in the Locust dashboard.")
+        st.error(f"Cannot connect to API at `{API_URL}`.")
 
 # --- PAGE 3: RETRAINING ---
 elif page == "Retraining Pipeline":
     st.title("🔄 Model Retraining")
     st.markdown("Trigger the MLOps pipeline to update the model with new data.")
     
-    st.warning("Note: This feature triggers a background job on the server.")
-    
     with st.form("retrain_form"):
         batch_files = st.file_uploader("Upload New Dataset Batch (Images)", accept_multiple_files=True)
-        notes = st.text_area("Version Notes", placeholder="e.g. Added 50 new Stenosis cases from Hospital A")
+        notes = st.text_area("Version Notes", placeholder="e.g. Added 50 new Stenosis cases")
         
         submitted = st.form_submit_button("Trigger Retraining")
         
         if submitted:
-            if not batch_files:
-                st.error("Please upload at least one file to retrain.")
-            else:
-                try:
-                    # In a real scenario, we'd upload these files. 
-                    # For the assignment demo, we trigger the signal.
-                    res = requests.post(f"{API_URL}/retrain")
-                    if res.status_code == 200:
-                        st.success(f"Pipeline Triggered! {res.json()['message']}")
-                        st.json({"files_queued": len(batch_files), "notes": notes, "status": "Training"})
-                    else:
-                        st.error("Failed to trigger pipeline.")
-                except:
-                     st.error("Failed to connect to API.")
+            try:
+                res = requests.post(f"{API_URL}/retrain")
+                if res.status_code == 200:
+                    st.success(f"Pipeline Triggered! {res.json()['message']}")
+                else:
+                    st.error("Failed to trigger pipeline.")
+            except:
+                 st.error("Failed to connect to API.")
