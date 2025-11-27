@@ -33,14 +33,15 @@ RUN chown -R appuser:appuser /app
 # 9. Switch to secure user
 USER appuser
 
-# 10. Expose Port (Render uses 10000 by default, but we force 8000 internally)
+# 10. Expose Port (Documentation only)
 EXPOSE 8000
 
 # 11. Healthcheck (Satisfies Assignment "Extra Caveats")
-# Checks if API is alive every 30s
+# Uses the PORT environment variable to check the correct endpoint
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/ || exit 1
+  CMD curl -f http://localhost:${PORT:-8000}/ || exit 1
 
 # 12. Start Command
-# We bind to 0.0.0.0 to allow external access
-CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# CRITICAL FIX: Use shell format (no brackets) to allow variable expansion.
+# This lets Render inject its dynamic PORT (usually 10000) or defaults to 8000.
+CMD uvicorn src.api:app --host 0.0.0.0 --port ${PORT:-8000}
