@@ -1,53 +1,46 @@
-# 1. Base Image
-# We keep Python 3.11 because your dependencies (contourpy/click) require it.
+# 1. Base Image: Python 3.11 (Required for modern libraries in your requirements.txt)
 FROM python:3.11-slim
 
-# 2. Environment Variables
+# 2. Optimization: Prevent Python from buffering logs (Crucial for Render logs)
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# 3. System Dependencies
+# 3. System Dependencies (Required for OpenCV/Pillow)
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Create non-root user
+# 4. Security: Create a non-root user
 RUN useradd -m -u 1000 appuser
 
-# 5. Working Directory
+# 5. Setup Workspace
 WORKDIR /app
 
-# 6. Install Dependencies using UV (Faster than Pip)
+# 6. Install Dependencies (Fast Build)
+# We copy requirements first to leverage caching
 COPY requirements.txt .
-
-# Step 6a: Install uv
-RUN pip install uv
-
-# Step 6b: Use uv to install requirements
-# --system flag installs into the global python environment (standard for containers)
-# --no-cache prevents storing huge cache files in the image layer
-RUN uv pip install --system --no-cache -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # 7. Copy Application Code
 COPY . .
 
-# 8. Permissions
-RUN chown -R appuser:appuser /app && \
-    mkdir -p /app/models && \
-    chown -R appuser:appuser /app/models
+# 8. Permissions: Ensure appuser owns the model file
+RUN chown -R appuser:appuser /app
 
-# 9. Switch User
+# 9. Switch to secure user
 USER appuser
 
-# 10. Expose Ports
+# 10. Expose Port (Render uses 10000 by default, but we force 8000 internally)
 EXPOSE 8000
-EXPOSE 8501
 
-# 11. Healthcheck
+# 11. Healthcheck (Satisfies Assignment "Extra Caveats")
+# Checks if API is alive every 30s
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8000/ || exit 1
 
 # 12. Start Command
+# We bind to 0.0.0.0 to allow external access
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
