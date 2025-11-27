@@ -4,6 +4,10 @@
 
 **ARCADE** is an end-to-end Machine Learning Operations (MLOps) pipeline designed to detect **Coronary Artery Stenosis** (narrowing of blood vessels) from X-ray Angiography images. It bridges the gap between medical imaging and automated diagnostics using deep learning.
 
+### **📹 Video Demo**
+
+[Click here for the video demo](https://youtu.be/xvGsVLVcM-M)
+
 ### **🌐 Live Deployment**
 
 
