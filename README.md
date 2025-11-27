@@ -6,10 +6,10 @@
 
 ### **📹 Video Demo**
 
-[Click here for the video demo](https://youtu.be/xvGsVLVcM-M)
+[Click here for the video demo](https://youtu.be/T0Gh0PIApLE)
 
 or 
-copy this link https://youtu.be/xvGsVLVcM-M
+copy this link https://youtu.be/T0Gh0PIApLE
 ### **🌐 Live Deployment**
 
 
