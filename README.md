@@ -8,6 +8,8 @@
 
 [Click here for the video demo](https://youtu.be/xvGsVLVcM-M)
 
+or 
+copy this link https://youtu.be/xvGsVLVcM-M
 ### **🌐 Live Deployment**
 
 
